@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Model Viewer</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Our 3D code will go here
+        let scene, camera, renderer, model;
+let mixer, clock;
+
+function init() {
+    // Create scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcccccc);
+
+    // Create camera
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
+
+    // Create renderer
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Initialize clock for animations
+    clock = new THREE.Clock();
+
+    // Load the GLB file
+    const loader = new THREE.GLTFLoader();
+    loader.load(
+        'dur.glb', // Path to your GLB file
+        function (gltf) {
+            model = gltf.scene;
+            scene.add(model);
+
+            // Check if the model has animations
+            if (gltf.animations && gltf.animations.length) {
+                // Create an AnimationMixer
+                mixer = new THREE.AnimationMixer(model);
+                
+                // Play all animations
+                gltf.animations.forEach((clip) => {
+                    mixer.clipAction(clip).play();
+                });
+            }
+
+            // Adjust camera to fit the model
+            fitCameraToObject(camera, model, 1.5);
+        },
+        function (xhr) {
+            console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+        },
+        function (error) {
+            console.error('An error happened', error);
+        }
+    );
+
+    // Add lights
+    const ambientLight = new THREE.AmbientLight(0x404040);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    scene.add(directionalLight);
+
+    animate();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    // Update animations
+    if (mixer) {
+        mixer.update(clock.getDelta());
+    }
+
+    renderer.render(scene, camera);
+}
+
+function fitCameraToObject(camera, object, offset = 1.25) {
+    const boundingBox = new THREE.Box3();
+    boundingBox.setFromObject(object);
+
+    const center = boundingBox.getCenter(new THREE.Vector3());
+    const size = boundingBox.getSize(new THREE.Vector3());
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const fov = camera.fov * (Math.PI / 180);
+    let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2)) * offset;
+
+    camera.position.z = cameraZ;
+    
+    const minZ = boundingBox.min.z;
+    const cameraToFarEdge = (minZ < 0) ? -minZ + cameraZ : cameraZ - minZ;
+
+    camera.far = cameraToFarEdge * 3;
+    camera.updateProjectionMatrix();
+
+    camera.lookAt(center);
+}
+
+init();
+
+// Handle window resizing
+window.addEventListener('resize', onWindowResize, false);
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+    </script>
+</body>
+</html>
